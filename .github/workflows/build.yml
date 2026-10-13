@@ -1,0 +1,47 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        run: |
+          python -c "import customtkinter, os; print(os.path.dirname(customtkinter.__file__))" > ctk_path.txt
+          $ctkPath = (Get-Content ctk_path.txt).Trim()
+          python -m PyInstaller --onefile --windowed --name CamMicSwitch `
+            --paths . `
+            --add-data "$ctkPath\assets;customtkinter/assets" `
+            --add-data "$ctkPath\windows;customtkinter/windows" `
+            --hidden-import cv2 --hidden-import customtkinter `
+            --hidden-import sounddevice --hidden-import soundfile `
+            --hidden-import pyvirtualcam --hidden-import pystray `
+            --hidden-import pystray._win32 `
+            --distpath dist --workpath build_tmp --noconfirm main.py
+
+      - name: Verify output
+        run: |
+          Get-ChildItem dist\CamMicSwitch.exe | Select-Object Name, Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CamMicSwitch-exe
+          path: dist/CamMicSwitch.exe
+          if-no-files-found: error
